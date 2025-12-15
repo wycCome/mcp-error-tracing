@@ -141,6 +141,78 @@ java.lang.NullPointerException: Cannot invoke method on null object
 请创建 JIRA 任务，标题"修复空指针异常"，标签 "bug" "urgent"
 ```
 
+## 使用场景与轻量提示
+
+JIRA 相关参数通常在 `.env` 中配置，日常使用只需给出最少的上下文即可。把错误堆栈直接粘贴给 AI，模型会自动识别并调用合适的工具。
+
+提示约定：除非你明确提供标题，模型会基于错误上下文自动生成合适的 JIRA 标题与描述。
+
+### 快速一键闭环（不需要分析）
+示例提示：
+
+```
+我这有个错误，请你直接完成责任人定位、关联 PR 并创建 JIRA：
+
+文件: src/main/java/com/example/service/UserService.java
+行号: 161
+
+错误堆栈：
+java.lang.NullPointerException: Cannot invoke method on null object
+  at UserService.checkUser(UserService.java:161)
+
+JIRA：标题「修复空指针异常」，标签「bug」「urgent」。
+```
+
+说明：模型会自动进行代码所有者定位和 PR 检索，并用 `.env` 中的 JIRA 配置创建任务，无需显式写出工具名称。
+
+### 先让模型分析，再落任务
+示例提示：
+
+```
+请先根据下面的错误做简要原因分析与修复建议，然后帮我创建一个 JIRA：
+
+文件: src/main/java/com/example/service/UserService.java
+行号: 161
+
+错误堆栈：
+java.lang.NullPointerException: Cannot invoke method on null object
+  at UserService.checkUser(UserService.java:161)
+
+JIRA：标题「修复空指针异常（含原因分析）」即可。
+```
+
+说明：模型会输出结构化的分析结论（原因/影响/建议）并在创建 JIRA 时自动带上摘要；无需指定工具名，模型会自行选择步骤。
+
+### 其他常见场景
+
+- 多文件/多位置排查（模块级）：
+
+```
+用户登录偶发失败，请按模块排查并指出最可能的改动来源：
+模块: auth、session、gateway
+错误堆栈（多段粘贴即可）：
+...
+```
+
+- 批量错误收敛并统一创建任务：
+
+```
+我有三处相似的 NPE，请合并分析并创建一个总任务，附上三个具体文件与行号作为子任务描述：
+1) auth/UserService.java:161
+2) session/SessionManager.java:45
+3) gateway/LoginController.java:102
+错误堆栈已在上文粘贴。
+```
+
+- 只分派给代码责任人（不创建 JIRA）：
+
+```
+请定位这段错误的代码责任人并把结论返回给我，不需要创建 JIRA：
+文件: src/main/java/com/example/service/UserService.java
+行号: 161
+错误堆栈：...
+```
+
 ## 远程部署
 
 ### Docker 部署
