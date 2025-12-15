@@ -40,6 +40,7 @@ src/
 ├── http-server.ts        # HTTP 模式入口
 ├── compatible-server.ts  # 兼容模式入口
 ├── server-tools.ts       # 工具注册（共享）
+├── stack-analyzer.ts     # 堆栈分析和代码上下文提取
 ├── api.ts                # 外部 API 调用
 ├── handlers.ts           # 业务逻辑
 ├── config.ts             # 配置加载

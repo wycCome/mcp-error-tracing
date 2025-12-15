@@ -68,6 +68,66 @@ export function registerTools(server: McpServer): void {
   );
 
   /**
+   * Tool: Get method code context
+   */
+  server.registerTool(
+    "get_method_code",
+    {
+      description: 
+        "根据堆栈错误行，获取该行所在方法的完整代码。" +
+        "智能识别方法边界，返回完整方法代码（保持原始格式），供 AI 分析错误原因。",
+      inputSchema: {
+        filePath: z.string().describe("The relative path to the file in the repository (e.g., com/example/service/UserService.java)"),
+        lineNumber: z.number().describe("The line number where the error occurred"),
+        branch: z.string().default(defaultBranch).describe(`The branch name (default: ${defaultBranch})`),
+      },
+    },
+    async ({ filePath, lineNumber, branch }) => {
+      const { getCodeContext } = await import("./stack-analyzer.js");
+      const result = await getCodeContext(filePath, lineNumber, branch);
+      
+      // 构建清晰的返回格式
+      const response = {
+        filePath,
+        branch,
+        methodRange: {
+          startLine: result.startLine,
+          endLine: result.endLine,
+          totalLines: result.endLine - result.startLine + 1,
+        },
+        errorLocation: {
+          line: lineNumber,
+          relativePosition: lineNumber - result.startLine + 1,
+        },
+        code: result.code,
+      };
+      
+      // 构建友好的文本格式输出
+      const formattedOutput = [
+        `文件: ${filePath}`,
+        `分支: ${branch}`,
+        `方法范围: 第 ${result.startLine}-${result.endLine} 行 (共 ${result.endLine - result.startLine + 1} 行)`,
+        `错误位置: 第 ${lineNumber} 行 (方法内第 ${lineNumber - result.startLine + 1} 行)`,
+        ``,
+        `完整方法代码:`,
+        `${'='.repeat(80)}`,
+        result.code,
+        `${'='.repeat(80)}`,
+      ].join('\n');
+      
+      return {
+        content: [
+          {
+            type: "text",
+            text: formattedOutput,
+          },
+        ],
+        _meta: response, // 保留结构化数据供程序使用
+      };
+    }
+  );
+
+  /**
    * Tool: Create JIRA ticket
    */
   server.registerTool(

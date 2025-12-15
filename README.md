@@ -53,6 +53,7 @@ JIRA_COMPONENT_ID=12505
 |------|----------|
 | `find_code_owner` | 通过文件路径和行号查找代码最后修改者 |
 | `get_pull_request` | 根据 commit ID 查找相关 Pull Request |
+| `get_method_code` | 智能获取错误行所在方法的完整代码（自动识别方法边界） |
 | `investigate_error` | 自动调查错误（查找责任人 + PR 信息） |
 | `create_jira_ticket` | 基于调查结果创建并分配 JIRA 任务 |
 | `track_error_full` | 完整流程：调查 → 分析 → 创建 JIRA（一键完成） |
@@ -127,7 +128,15 @@ JIRA_COMPONENT_ID=12505
 src/main/java/com/example/service/UserService.java
 ```
 
-### 场景2：完整错误追踪
+### 场景2：获取错误上下文代码
+
+```
+请获取这个错误行所在方法的完整代码：
+文件: src/main/java/com/example/service/UserService.java
+行号: 161
+```
+
+### 场景3：完整错误追踪
 
 ```
 我遇到空指针异常：
@@ -182,6 +191,20 @@ JIRA：标题「修复空指针异常（含原因分析）」即可。
 ```
 
 说明：模型会输出结构化的分析结论（原因/影响/建议）并在创建 JIRA 时自动带上摘要；无需指定工具名，模型会自行选择步骤。
+
+### 深度分析错误上下文
+示例提示：
+
+```
+我需要分析这个异常的根本原因，请先获取完整方法代码：
+
+文件: src/main/java/com/example/service/UserService.java
+行号: 161
+
+然后分析可能的异常原因并给出修复建议。
+```
+
+说明：模型会自动调用 `get_method_code` 工具获取完整方法代码，然后基于完整上下文进行分析，比仅有堆栈信息更准确。
 
 ### 其他常见场景
 

@@ -253,6 +253,22 @@ export interface ErrorAnalysisData {
 }
 
 /**
+ * Stack frame with code context for AI analysis
+ */
+export interface StackFrameWithCode {
+  frame: {
+    className: string;
+    methodName: string;
+    filePath: string;
+    lineNumber: number;
+    rawLine: string;
+  };
+  code: string;
+  startLine: number;
+  endLine: number;
+}
+
+/**
  * Error investigation result (for AI analysis)
  */
 export interface ErrorInvestigationResult {
@@ -262,6 +278,7 @@ export interface ErrorInvestigationResult {
   filePath: string;
   lineNumber: number;
   branch: string;
+  stackFramesWithCode?: StackFrameWithCode[]; // Optional: code context for AI to analyze
 }
 
 /**

@@ -51,7 +51,14 @@ export async function findCodeOwner(
     throw new Error("No blame information found for this line");
   } catch (error) {
     if (axios.isAxiosError(error)) {
-      throw new Error(`Bitbucket API error: ${error.response?.status} - ${error.message}`);
+      const errorDetails = error.response?.data?.errors?.[0]?.message || error.response?.statusText || error.message;
+      throw new Error(
+        `Bitbucket API error: ${error.response?.status} - ${errorDetails}\n` +
+        `请求的 URL: ${url}\n` +
+        `分支: ${branch}\n` +
+        `文件路径: ${filePath}\n` +
+        `提示: 请检查 .env 中的 BITBUCKET_PROJECT, BITBUCKET_REPO 配置是否正确，以及分支名和文件路径是否存在`
+      );
     }
     throw error;
   }

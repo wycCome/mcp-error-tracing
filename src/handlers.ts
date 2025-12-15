@@ -82,6 +82,22 @@ export function formatJiraDescription(
     });
   }
 
+  // 如果有堆栈代码上下文，添加到描述中（供参考）
+  if (investigation.stackFramesWithCode && investigation.stackFramesWithCode.length > 0) {
+    description += "\r\n----\r\n\r\n";
+    description += "h2. 堆栈代码上下文（已由 AI 分析）\r\n";
+    description += "{panel:title=💡 提示|borderStyle=solid|borderColor=#ccc|titleBGColor=#e3fcef}\r\n";
+    description += "以下代码片段已由 AI 模型分析，用于确定真实的错误根源。上述分析和建议基于对这些代码的理解。\r\n";
+    description += "{panel}\r\n\r\n";
+    
+    investigation.stackFramesWithCode.forEach((frameWithCode, index) => {
+      const { frame, code, startLine, endLine } = frameWithCode;
+      description += "{code:title=" + (index + 1) + ". " + frame.className + "." + frame.methodName + " (" + frame.filePath + ":" + frame.lineNumber + ")|collapse=true|linenumbers=true|firstline=" + startLine + "}\r\n";
+      description += code + "\r\n";
+      description += "{code}\r\n\r\n";
+    });
+  }
+
   return description;
 }
 
