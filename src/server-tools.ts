@@ -153,7 +153,7 @@ export function registerTools(server: McpServer): void {
           "AI-generated Chinese error analysis (can be JSON string or object): " +
           '{"errorInfo": "异常类型：{ExceptionType}。堆栈跟踪：{简要堆栈路径，例如：ClassA.methodX(File.java:123) -> ClassB.methodY(File.java:456)}。", ' +
           '"analysis": "根本原因：{用一两句话说明导致异常的直接原因，例如：未对用户输入做空值校验、配置缺失、类型转换错误等}。该问题引入于 {需求编号}。风险：{说明该问题对系统、业务或用户体验的影响，例如：可能导致服务中断、数据丢失、流程失败等}。", ' +
-          '"suggestions": "修复建议：{具体、可操作的修复步骤，也可以写伪代码示例，若逻辑简单，可直接给出示例代码}。"}'
+          '"suggestions": "修复建议：{具体、可操作的修复步骤，也可以写伪代码示例，若逻辑简单，可直接给出示例代码，最好直接把修复的代码附上}。"}'
         ),
         labels: z.array(z.string()).optional().default([]).describe("Labels to add to the ticket (optional)"),
       },
