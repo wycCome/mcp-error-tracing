@@ -85,10 +85,11 @@ function findMethodBoundaries(
   // 方法签名起始（有修饰符的行）
   const methodStartPattern = /^\s*(@[\w.]+(\([^)]*\))?\s*)*(public|private|protected|static|final|synchronized|native|abstract|default|strictfp)\b/;
   
-  // 无修饰符的方法签名（包级访问权限）：返回类型 + 方法名 + (
+  // 无修饰符的方法签名（包级访问权限）：必须有明确的返回类型
+  // 返回类型必须是: 基本类型(void/int/boolean等) 或 大写开头的引用类型 或 泛型
   // 例如: void check() 或 String getName() 或 <T> List<T> getList()
-  // 排除容易误判的语句（如 return foo(...), throw new ..., case ...）
-  const packageMethodPattern = /^\s*(?!return\b|throw\b|new\b|case\b|else\b)(<[^>]+>\s*)?[\w<>\[\].,\s]+\s+\w+\s*\(/;
+  // 明确排除: 仅有方法名和括号的调用语句，如 setVirtualOperatorForOnlineCancel(...)
+  const packageMethodPattern = /^\s*(?!return\b|throw\b|new\b|case\b|else\b|if\b|while\b|for\b|switch\b)(<[^>]+>\s*)?(void|boolean|byte|char|short|int|long|float|double|[A-Z]\w*[\w<>\[\].,\s]*)\s+\w+\s*\(/;
 
   // 定位：向上找到方法签名起始（支持多行签名）
   let signatureStartIndex = -1;
@@ -110,9 +111,17 @@ function findMethodBoundaries(
     
     // 找到方法签名起始（包含修饰符或无修饰符）
     const hasModifier = methodStartPattern.test(line);
+    // 额外防护：避免把调用表达式误判为方法签名
+    let safePackageCandidate = false;
+    if (!hasModifier && packageMethodPattern.test(line)) {
+      const parenIndex = line.indexOf('(');
+      const dotBefore = parenIndex !== -1 ? line.lastIndexOf('.', parenIndex) : -1;
+      const hasAssignment = line.includes('=');
+      safePackageCandidate = parenIndex !== -1 && dotBefore === -1 && !hasAssignment;
+    }
     const isPackageMethod =
       !hasModifier &&
-      packageMethodPattern.test(line) &&
+      safePackageCandidate &&
       !trimmed.startsWith('if') &&
       !trimmed.startsWith('while') &&
       !trimmed.startsWith('for') &&
@@ -125,17 +134,29 @@ function findMethodBoundaries(
     if (hasModifier || isPackageMethod) {
       signatureStartIndex = i;
       
-      // 向下扫描找到完整签名（到 { 或 ; 为止）
+      // 向下扫描找到完整签名（到 { 或 声明式 ; 为止）
       let foundEnd = false;
       for (let j = i; j < lines.length; j++) {
-        const sigLine = lines[j].trim();
-        if (sigLine.includes('{') || sigLine.endsWith(';')) {
+        const rawSig = lines[j];
+        const sigLine = rawSig.trim();
+        const hasOpeningBrace = sigLine.includes('{');
+        const endsWithSemicolon = /;\s*$/.test(sigLine);
+        // 仅当分号行看起来像“方法声明”才视为签名结束，避免把普通调用当作声明
+        let looksLikeDeclarationWithSemicolon = false;
+        if (endsWithSemicolon) {
+          const parenIndex = rawSig.indexOf('(');
+          const hasClosingParen = parenIndex !== -1 && rawSig.indexOf(')', parenIndex) !== -1;
+          const dotBefore = parenIndex !== -1 ? rawSig.lastIndexOf('.', parenIndex) : -1;
+          const hasAssignment = rawSig.includes('=');
+          looksLikeDeclarationWithSemicolon = hasClosingParen && dotBefore === -1 && !hasAssignment;
+        }
+        if (hasOpeningBrace || looksLikeDeclarationWithSemicolon) {
           signatureEndIndex = j;
           foundEnd = true;
           break;
         }
-        // 避免扫描太远（最多10行）
-        if (j - i > 10) break;
+        // 避免扫描太远（最多30行）
+        if (j - i > 30) break;
       }
       
       if (foundEnd) break;
