@@ -53,7 +53,7 @@ JIRA_COMPONENT_ID=12505
 |------|----------|
 | `find_code_owner` | 通过文件路径和行号查找代码最后修改者 |
 | `get_pull_request` | 根据 commit ID 查找相关 Pull Request |
-| `get_method_code` | 智能获取错误行所在方法的完整代码（自动识别方法边界） |
+| `get_method_code` | 获取错误行所在的完整方法代码，为 AI 提供上下文用于根因分析（自动识别方法边界，支持多层堆栈智能定位） |
 | `investigate_error` | 自动调查错误（查找责任人 + PR 信息） |
 | `create_jira_ticket` | 基于调查结果创建并分配 JIRA 任务 |
 | `track_error_full` | 完整流程：调查 → 分析 → 创建 JIRA（一键完成） |
@@ -205,6 +205,27 @@ JIRA：标题「修复空指针异常（含原因分析）」即可。
 ```
 
 说明：模型会自动调用 `get_method_code` 工具获取完整方法代码，然后基于完整上下文进行分析，比仅有堆栈信息更准确。
+
+### 智能分析堆栈定位根本原因
+示例提示：
+
+```
+这是一个完整的错误堆栈，请逐层获取错误行所在方法的完整代码：
+
+java.lang.NullPointerException: Cannot invoke method on null object
+    at com.example.utils.StringUtil.isEmpty(StringUtil.java:45)
+    at com.example.service.UserService.validateUser(UserService.java:161)
+    at com.example.controller.LoginController.login(LoginController.java:89)
+    at com.example.gateway.ApiGateway.handleRequest(ApiGateway.java:203)
+
+找到最可能的位置后，对错误进行调查，然后结合代码对错误进行分析，最后创建 JIRA。
+```
+
+说明：模型会智能分析堆栈：
+1. 自动获取堆栈中多层方法的完整代码
+2. 结合代码逻辑判断根本原因（调用者参数不合规 vs 工具类缺陷）
+3. 定位到最可能出错的业务代码层，而非最底层的工具方法
+4. 余下步骤参见"先让模型分析，再落任务"
 
 ### 其他常见场景
 
