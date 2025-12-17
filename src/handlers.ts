@@ -42,11 +42,27 @@ export function formatJiraDescription(
   let errorData: ErrorAnalysisData;
   
   if (typeof errorAnalysis === 'string') {
-    // 如果是字符串，尝试解析 JSON
+    // 如果是字符串，尝试解析 JSON（可能需要双重解析）
     try {
-      errorData = JSON.parse(errorAnalysis);
-    } catch {
+      console.error('[DEBUG] 开始解析 errorAnalysis，长度:', errorAnalysis.length);
+      console.error('[DEBUG] 前500字符:', errorAnalysis.substring(0, 500));
+      
+      let parsed = JSON.parse(errorAnalysis);
+      console.error('[DEBUG] 第一次解析成功，parsed 类型:', typeof parsed);
+      
+      // 检查是否需要再次解析（双重 JSON 编码的情况）
+      if (typeof parsed === 'string') {
+        console.error('[DEBUG] errorAnalysis 被双重编码，进行第二次解析');
+        parsed = JSON.parse(parsed);
+      }
+      
+      errorData = parsed;
+      console.error('[DEBUG] 最终解析成功');
+    } catch (error) {
       // 如果不是 JSON，当作普通错误信息处理
+      console.error('[DEBUG] JSON 解析失败');
+      console.error('[DEBUG] 错误详情:', error);
+      console.error('[DEBUG] errorAnalysis 完整内容:', errorAnalysis);
       errorData = { errorInfo: errorAnalysis, analysis: "未使用大模型分析", suggestions: "未使用大模型分析" };
     }
   } else {
@@ -54,10 +70,44 @@ export function formatJiraDescription(
     errorData = errorAnalysis;
   }
   
-  // 格式化错误信息部分
-  let description = "h2. 错误信息\r\n{code:java}\r\n" + (errorData.errorInfo || errorAnalysis) + "\r\n{code}\r\n\r\n";
-  description += "h2. 报错分析\r\n" + (errorData.analysis || "未使用大模型分析") + "\r\n\r\n";
-  description += "h2. 修改建议\r\n" + (errorData.suggestions || "未使用大模型分析") + "\r\n\r\n";
+  // 格式化错误信息部分（将 \n 转换为 JIRA 换行符，同时处理 \\n 和实际换行符）
+  const errorInfo = (errorData.errorInfo || String(errorAnalysis))
+    .replace(/\\n/g, '\r\n')  // 处理字面字符串 \n
+    .replace(/\n/g, '\r\n');   // 处理实际换行符
+  let description = "h2. 错误信息\r\n{code:java}\r\n" + errorInfo + "\r\n{code}\r\n\r\n";
+  
+  // 报错分析（将 \n 转换为 JIRA 换行符，同时处理 \\n 和实际换行符）
+  const analysis = (errorData.analysis || "未使用大模型分析")
+    .replace(/\\n/g, '\r\n')  // 处理字面字符串 \n
+    .replace(/\n/g, '\r\n');   // 处理实际换行符
+  description += "h2. 报错分析\r\n" + analysis + "\r\n\r\n";
+  
+  // 处理修复建议（支持字符串和对象格式）
+  description += "h2. 修复建议\r\n";
+  if (errorData.suggestions) {
+    if (typeof errorData.suggestions === 'string') {
+      // 如果是字符串，直接显示（转换换行符）
+      const fixSuggestions = errorData.suggestions
+        .replace(/\\n/g, '\r\n')  // 处理字面字符串 \n
+        .replace(/\n/g, '\r\n');   // 处理实际换行符
+      description += fixSuggestions + "\r\n\r\n";
+    } else {
+      // 如果是对象，格式化显示
+      const fixDesc = (errorData.suggestions.fixDescription || '')
+        .replace(/\\n/g, '\r\n')  // 处理字面字符串 \n
+        .replace(/\n/g, '\r\n');   // 处理实际换行符
+      description += fixDesc + "\r\n\r\n";
+      if (errorData.suggestions.codeExample) {
+        description += "h3. 代码示例\r\n";
+        const codeExample = errorData.suggestions.codeExample
+          .replace(/\\n/g, '\r\n')  // 处理字面字符串 \n
+          .replace(/\n/g, '\r\n');   // 处理实际换行符
+        description += "{code:java}\r\n" + codeExample + "\r\n{code}\r\n\r\n";
+      }
+    }
+  } else {
+    description += "未使用大模型分析\r\n\r\n";
+  }
   description += "----\r\n\r\n";
 
   description += "h2. 代码位置\r\n";

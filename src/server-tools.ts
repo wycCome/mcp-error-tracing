@@ -75,7 +75,10 @@ export function registerTools(server: McpServer): void {
     {
       description: 
         "Get the complete code of the method containing the error line from the stack trace. " +
-        "Intelligently identifies method boundaries and returns the complete method code (preserving original formatting) for AI error analysis.",
+        "Intelligently identifies method boundaries and returns the complete method code (preserving original formatting) for AI error analysis. " +
+        "\n\n💡 TIP: This tool provides essential context for error analysis. After getting the method code, " +
+        "you can perform deeper analysis and then call investigate_error to find responsible developers, " +
+        "followed by create_jira_ticket to complete the workflow.",
       inputSchema: {
         filePath: z.string().describe("The relative path to the file in the repository (e.g., com/example/service/UserService.java)"),
         lineNumber: z.number().describe("The line number where the error occurred"),
@@ -147,11 +150,30 @@ export function registerTools(server: McpServer): void {
     {
       description: 
         "Create a JIRA ticket with AI-generated error analysis and investigation results from investigate_error tool. " +
-        "The ticket will include code owner information, related pull requests, and detailed error analysis.",
+        "The ticket will include code owner information, related pull requests, and detailed error analysis. " +
+        "\n\n💡 FOR BEST RESULTS:\n" +
+        "• Use get_method_code first to obtain complete method code for thorough analysis\n" +
+        "• Generate a detailed errorAnalysis object based on the method code context\n" +
+        "• Call investigate_error to retrieve code owner and PR information\n" +
+        "• Then use this tool to create a comprehensive JIRA ticket with all the gathered data",
       inputSchema: {
         summary: z.string().describe(
-          "AI-generated Chinese summary that concisely describes the core cause of the error, not a direct paste of error code or stack trace. " +
-          "Example: '用户输入未校验导致空指针异常' instead of 'NullPointerException at line 123'"
+          "AI-generated Chinese JIRA title that precisely identifies the issue with specific technical details. " +
+          "\n\n📋 REQUIRED FORMAT: '{业务模块} - {具体对象/变量/方法名称}{问题描述}' " +
+          "\n\n✅ EXCELLENT EXAMPLES (包含具体变量/对象名):" +
+          "\n• '案件不予受理 - claimCaseEntity对象空指针异常'" +
+          "\n• '用户资料查询 - getUserById返回值未校验空指针'" +
+          "\n• '订单支付 - discountAmount变量null导致计算错误'" +
+          "\n• '库存扣减 - productStock并发更新数据不一致'" +
+          "\n\n❌ AVOID THESE (过于笼统):" +
+          "\n✗ '用户资料查询 - 空指针异常' (哪个对象空指针？)" +
+          "\n✗ '订单支付 - 金额错误' (哪个变量？什么错误？)" +
+          "\n✗ 'NullPointerException at line 123' (无业务上下文)" +
+          "\n\n💡 HOW TO CREATE:" +
+          "\n1. 业务模块：从类名/方法名推断 (ClaimNoRegisterCase → 案件不予受理)" +
+          "\n2. 具体对象：从错误分析中提取准确的变量/对象名 (claimCaseEntity, user, orderInfo)" +
+          "\n3. 问题类型：简洁描述 (空指针异常, 类型转换错误, 并发冲突)" +
+          "\n4. 长度控制：建议不超过30个汉字，确保 JIRA 列表可读性"
         ),
         investigationData: z.union([z.string(), z.any()]).describe(
           "REQUIRED: Complete data returned by investigate_error tool (can be JSON string or object). " +
@@ -162,10 +184,28 @@ export function registerTools(server: McpServer): void {
           "JIRA assignee username, get this value from investigationData.codeOwner.name"
         ),
         errorAnalysis: z.union([z.string(), z.any()]).describe(
-          "AI-generated Chinese error analysis (can be JSON string or object): " +
-          '{"errorInfo": "异常类型：{ExceptionType}。堆栈跟踪：{简要堆栈路径，例如：ClassA.methodX(File.java:123) -> ClassB.methodY(File.java:456)}。", ' +
-          '"analysis": "根本原因：{用一两句话说明导致异常的直接原因，例如：未对用户输入做空值校验、配置缺失、类型转换错误等}。该问题引入于 {需求编号}。风险：{说明该问题对系统、业务或用户体验的影响，例如：可能导致服务中断、数据丢失、流程失败等}。", ' +
-          '"suggestions": "修复建议：{结合堆栈错误行 {lineNumber} 以及方法 {methodName} 的完整代码上下文：{methodCode}，为该方法提供针对错误行的精准修复建议"}'
+          "AI-generated Chinese error analysis (can be JSON string or object). " +
+          "MUST be based on the complete method code from get_method_code tool. " +
+          "\n\n⚠️ DEEP ANALYSIS REQUIRED - Go beyond surface symptoms:\n" +
+          "For errors like NullPointerException, don't just say 'object is null'. Investigate:\n" +
+          "• WHY is the object null? (missing initialization, failed query, incorrect parameter)\n" +
+          "• WHERE did the null value originate? (method parameter, database query, external API call)\n" +
+          "• WHAT conditions led to this state? (missing validation, edge case, race condition)\n" +
+          "• WHEN was this bug introduced? (related PR/commit if identifiable from code)\n" +
+          "\n\n📋 REQUIRED JSON FORMAT:\n" +
+          "{\n" +
+          '  "errorInfo": "异常类型：{ExceptionType}。堆栈跟踪：{简要堆栈路径，例如：ClassA.methodX(File.java:123) -> ClassB.methodY(File.java:456)}。",\n' +
+          '  "analysis": "根本原因深度分析：\\n' +
+          '1. 直接原因（必需）：{描述错误的表面现象，例如：第123行调用 user.getName() 时 user 对象为 null}\\n' +
+          '2. 深层原因（必需）：{追溯 null 的来源，例如：user 来自第115行的 getUserById(userId) 方法，该方法在数据库中未找到记录时返回 null 而非抛出异常}\\n' +
+          '3. 根源分析（可选）：{如能判断，说明为什么会出现这种情况，例如：前端传入的 userId 可能是无效值，或者用户已被删除但缓存未更新}\\n' +
+          '4. 问题引入（可选）：{如能从代码或 PR 中判断，说明是哪个需求/版本引入，例如：疑似在 PR#1234 重构时移除了空值检查}\\n' +
+          '5. 影响范围（可选）：{如能评估，说明该问题对系统、业务或用户的影响，例如：用户访问个人资料页面时直接报错 500}",\n' +
+          '  "suggestions": {\n' +
+          '    "fixDescription": "修复建议的文字说明",\n' +
+          '    "codeExample": "具体的修复代码示例（将在 JIRA 中以代码块格式展示）"\n' +
+          '  }\n' +
+          '}'
         ),
         labels: z.array(z.string()).optional().default([]).describe("Labels to add to the ticket (optional)"),
       },
@@ -195,7 +235,11 @@ export function registerTools(server: McpServer): void {
   server.registerTool(
     "investigate_error",
     {
-      description: "Investigate an error by finding the code owner and related pull requests. Returns complete investigation data in JSON format that can be used with create_jira_ticket.",
+      description: 
+        "Investigate an error by finding the code owner and related pull requests. " +
+        "Returns complete investigation data in JSON format that can be used with create_jira_ticket. " +
+        "\n\n💡 BEST PRACTICE: For comprehensive error analysis, consider calling get_method_code first to understand the code context, " +
+        "then use this tool to identify the responsible developer based on the error line location.",
       inputSchema: {
         filePath: z.string().describe("The relative path to the file in the repository"),
         lineNumber: z.number().describe("The line number where the error occurred"),

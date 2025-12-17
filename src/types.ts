@@ -249,7 +249,10 @@ export interface JiraTicketResult {
 export interface ErrorAnalysisData {
   errorInfo?: string;
   analysis?: string;
-  suggestions?: string;
+  suggestions?: string | {
+    fixDescription: string;
+    codeExample?: string;
+  };
 }
 
 /**
