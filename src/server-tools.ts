@@ -74,8 +74,8 @@ export function registerTools(server: McpServer): void {
     "get_method_code",
     {
       description: 
-        "根据堆栈错误行，获取该行所在方法的完整代码。" +
-        "智能识别方法边界，返回完整方法代码（保持原始格式），供 AI 分析错误原因。",
+        "Get the complete code of the method containing the error line from the stack trace. " +
+        "Intelligently identifies method boundaries and returns the complete method code (preserving original formatting) for AI error analysis.",
       inputSchema: {
         filePath: z.string().describe("The relative path to the file in the repository (e.g., com/example/service/UserService.java)"),
         lineNumber: z.number().describe("The line number where the error occurred"),
@@ -102,16 +102,28 @@ export function registerTools(server: McpServer): void {
         code: result.code,
       };
       
+      // 为每一行代码添加真实行号注释
+      const codeLines = result.code.split('\n');
+      const codeWithLineNumbers = codeLines.map((line, index) => {
+        const actualLineNumber = result.startLine + index;
+        return `${line}  // 第${actualLineNumber}行`;
+      }).join('\n');
+      
+      // 获取错误行的具体代码
+      const errorLineIndex = lineNumber - result.startLine;
+      const errorLineCode = codeLines[errorLineIndex] || '(无法获取该行代码)';
+      
       // 构建友好的文本格式输出
       const formattedOutput = [
         `文件: ${filePath}`,
         `分支: ${branch}`,
         `方法范围: 第 ${result.startLine}-${result.endLine} 行 (共 ${result.endLine - result.startLine + 1} 行)`,
         `错误位置: 第 ${lineNumber} 行 (方法内第 ${lineNumber - result.startLine + 1} 行)`,
+        `错误代码: ${errorLineCode.trim()}`,
         ``,
         `完整方法代码:`,
         `${'='.repeat(80)}`,
-        result.code,
+        codeWithLineNumbers,
         `${'='.repeat(80)}`,
       ].join('\n');
       
@@ -153,7 +165,7 @@ export function registerTools(server: McpServer): void {
           "AI-generated Chinese error analysis (can be JSON string or object): " +
           '{"errorInfo": "异常类型：{ExceptionType}。堆栈跟踪：{简要堆栈路径，例如：ClassA.methodX(File.java:123) -> ClassB.methodY(File.java:456)}。", ' +
           '"analysis": "根本原因：{用一两句话说明导致异常的直接原因，例如：未对用户输入做空值校验、配置缺失、类型转换错误等}。该问题引入于 {需求编号}。风险：{说明该问题对系统、业务或用户体验的影响，例如：可能导致服务中断、数据丢失、流程失败等}。", ' +
-          '"suggestions": "修复建议：{具体、可操作的修复步骤，也可以写伪代码示例，若逻辑简单，可直接给出示例代码，最好直接把修复的代码附上}。"}'
+          '"suggestions": "修复建议：{结合堆栈错误行 {lineNumber} 以及方法 {methodName} 的完整代码上下文：{methodCode}，为该方法提供针对错误行的精准修复建议"}'
         ),
         labels: z.array(z.string()).optional().default([]).describe("Labels to add to the ticket (optional)"),
       },
