@@ -4,7 +4,7 @@
  */
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { findCodeOwner, getPullRequestByCommit } from "./api.js";
+import { findCodeOwner, getPullRequestByCommit, getCommitsByPath } from "./api.js";
 import { investigateError, createJiraTicketWithInvestigation } from "./handlers.js";
 import { loadConfig } from "./config.js";
 import * as z from "zod";
@@ -56,6 +56,39 @@ export function registerTools(server: McpServer): void {
     },
     async ({ commitId }) => {
       const result = await getPullRequestByCommit(commitId);
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result, null, 2),
+          },
+        ],
+      };
+    }
+  );
+
+  /**
+   * Tool: Get commits by path
+   */
+  server.registerTool(
+    "get_commits_by_path",
+    {
+      description: "Get commits for a specific directory path from Bitbucket. Filters commits by time (default: last 7 days). Useful for analyzing recent changes in a module or package.",
+      inputSchema: {
+        path: z.string().describe("The directory path in the repository (e.g., 'cbs_claim_catalog/cbs_claim/src/main/java/cbs/claim/application')"),
+        daysAgo: z.number().default(7).describe("Number of days to look back for commits (default: 7)"),
+        limit: z.number().default(50).describe("Maximum number of commits to return (default: 50)"),
+        excludeMerges: z.boolean().default(true).describe("Exclude merge commits (default: true)"),
+        branch: z.string().default(defaultBranch).describe(`The branch to query from (default: ${defaultBranch})`),
+      },
+    },
+    async ({ path, daysAgo, limit, excludeMerges, branch }) => {
+      const result = await getCommitsByPath(path, {
+        daysAgo,
+        limit,
+        excludeMerges,
+        branch,
+      });
       return {
         content: [
           {

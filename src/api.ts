@@ -7,6 +7,8 @@ import type {
   CodeOwnerInfo,
   PullRequestResult,
   JiraTicketResult,
+  CommitsResponse,
+  CommitsResult,
 } from "./types.js";
 
 const config = loadConfig();
@@ -173,6 +175,106 @@ export async function createJiraTicket(
     if (axios.isAxiosError(error)) {
       const errorData = error.response?.data;
       throw new Error(`JIRA API error: ${error.response?.status} - ${JSON.stringify(errorData)}`);
+    }
+    throw error;
+  }
+}
+
+/**
+ * Get commits by directory path from Bitbucket
+ * @param path - Directory path in the repository (e.g., 'cbs_claim_catalog/cbs_claim/src/main/java/cbs/claim/application')
+ * @param options - Query options
+ * @returns Simplified commit information (filtered by time in code)
+ */
+export async function getCommitsByPath(
+  path: string,
+  options: {
+    daysAgo?: number;
+    limit?: number;
+    excludeMerges?: boolean;
+    branch?: string;
+  } = {}
+): Promise<CommitsResult> {
+  const { bitbucket } = config;
+  const auth = Buffer.from(`${bitbucket.username}:${bitbucket.password}`).toString("base64");
+
+  const {
+    daysAgo = 7,
+    limit = 50,
+    excludeMerges = true,
+    branch = config.server.defaultBranch,
+  } = options;
+
+  const url = `${bitbucket.baseUrl}/rest/api/1.0/projects/${bitbucket.project}/repos/${bitbucket.repo}/commits`;
+
+  const params: Record<string, any> = {
+    path,
+    limit,
+  };
+
+  if (branch) {
+    params.until = branch;
+  }
+
+  if (excludeMerges) {
+    params.merges = "exclude";
+  }
+
+  try {
+    const response = await axios.get<CommitsResponse>(url, {
+      params,
+      headers: {
+        Authorization: `Basic ${auth}`,
+      },
+    });
+
+    // 计算时间阈值
+    const now = Date.now();
+    const timeThreshold = now - daysAgo * 24 * 60 * 60 * 1000;
+
+    // 简化返回数据，只保留需要的字段，并按时间过滤
+    const simplifiedValues = response.data.values
+      .filter(commit => commit.authorTimestamp >= timeThreshold)
+      .map(commit => ({
+        id: commit.id,
+        authorName: commit.author.name,
+        authorEmail: commit.author.emailAddress,
+        authorDisplayName: commit.author.displayName,
+        authorTimestamp: commit.authorTimestamp,
+      }));
+
+    // 格式化日期
+    const formatDate = (timestamp: number) => {
+      const date = new Date(timestamp);
+      return `${date.getFullYear()}年${String(date.getMonth() + 1).padStart(2, '0')}月${String(date.getDate()).padStart(2, '0')}日`;
+    };
+
+    const fromDate = formatDate(timeThreshold);
+    const toDate = formatDate(now);
+    const recordCount = simplifiedValues.length;
+
+    return {
+      size: recordCount,
+      limit: response.data.limit,
+      isLastPage: response.data.isLastPage,
+      start: response.data.start,
+      timeRange: {
+        from: fromDate,
+        to: toDate,
+        daysAgo,
+      },
+      summary: `${fromDate}到${toDate} 共${recordCount}条记录`,
+      values: simplifiedValues,
+    };
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      const errorDetails = error.response?.data?.errors?.[0]?.message || error.response?.statusText || error.message;
+      throw new Error(
+        `Bitbucket Commits API error: ${error.response?.status} - ${errorDetails}\n` +
+        `请求的 URL: ${url}\n` +
+        `路径: ${path}\n` +
+        `提示: 请检查目录路径是否存在于仓库中`
+      );
     }
     throw error;
   }

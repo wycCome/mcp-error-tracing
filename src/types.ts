@@ -225,6 +225,72 @@ export interface CodeOwnerInfo {
 }
 
 /**
+ * Simplified commit information
+ */
+export interface SimplifiedCommit {
+  id: string;
+  authorName: string;
+  authorEmail: string;
+  authorDisplayName: string;
+  authorTimestamp: number;
+}
+
+/**
+ * Commits API response from Bitbucket
+ */
+export interface CommitsResponse {
+  size: number;
+  limit: number;
+  isLastPage: boolean;
+  start: number;
+  values: Array<{
+    id: string;
+    displayId: string;
+    author: {
+      name: string;
+      emailAddress: string;
+      displayName: string;
+      id: number;
+      active: boolean;
+      slug: string;
+      type: string;
+    };
+    authorTimestamp: number;
+    committer: {
+      name: string;
+      emailAddress: string;
+      displayName: string;
+    };
+    committerTimestamp: number;
+    message: string;
+    parents: Array<{
+      id: string;
+      displayId: string;
+    }>;
+    properties?: {
+      "jira-key"?: string[];
+    };
+  }>;
+}
+
+/**
+ * Commits result with simplified data
+ */
+export interface CommitsResult {
+  size: number;
+  limit: number;
+  isLastPage: boolean;
+  start: number;
+  timeRange: {
+    from: string;  // 格式：YYYY年MM月DD日
+    to: string;    // 格式：YYYY年MM月DD日
+    daysAgo: number;
+  };
+  summary: string;  // 格式：YYYY年MM月DD日到YYYY年MM月DD日 共X条记录
+  values: SimplifiedCommit[];
+}
+
+/**
  * Pull request result
  */
 export interface PullRequestResult {

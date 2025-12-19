@@ -53,6 +53,7 @@ JIRA_COMPONENT_ID=12505
 |------|----------|
 | `find_code_owner` | 通过文件路径和行号查找代码最后修改者 |
 | `get_pull_request` | 根据 commit ID 查找相关 Pull Request |
+| `get_commits_by_path` | 获取指定目录路径的提交记录（支持时间范围、分支过滤），返回作者、时间、提交ID等信息 |
 | `get_method_code` | 获取错误行所在的完整方法代码，为 AI 提供上下文用于根因分析（自动识别方法边界，支持多层堆栈智能定位） |
 | `investigate_error` | 自动调查错误（查找责任人 + PR 信息） |
 | `create_jira_ticket` | 基于调查结果创建并分配 JIRA 任务 |
@@ -136,7 +137,16 @@ src/main/java/com/example/service/UserService.java
 行号: 161
 ```
 
-### 场景3：完整错误追踪
+### 场景3：分析模块最近变更
+
+```
+请分析理算模块最近7天的提交记录：
+目录: cbs_claim_catalog/cbs_claim/src/main/java/cbs/claim/application/settlement
+
+我需要看到最近有哪些人修改过这个模块，以及提交的时间范围。
+```
+
+### 场景4：完整错误追踪
 
 ```
 我遇到空指针异常：
