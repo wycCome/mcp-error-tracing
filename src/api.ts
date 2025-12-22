@@ -30,7 +30,7 @@ export async function findCodeOwner(
     const response = await axios.get<BlameResponse>(url, {
       params: {
         at: branch,
-        start: lineNumber,
+        start: lineNumber - 1,
         limit: 1,
         blame: true,
         noContent: true,
